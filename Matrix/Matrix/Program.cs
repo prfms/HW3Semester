@@ -1,17 +1,14 @@
-﻿using MatrixMultiplication;
-using static System.Console;
-using Matrix = MatrixMultiplication.Matrix;
-
+﻿using Matrix;
 
 if (args.Length == 0 || args[0] == "-help")
 {
-    WriteLine("""
+    Console.WriteLine("""
 
-              This program for _matrix multiplication using parallel computing.
+              This program for matrix multiplication using concurrent computing.
 
               To multiply matrices from files:
               - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - -
-              dotnet run [first _matrix file path] [second _matrix file path]
+              dotnet run [first matrix file path] [second matrix file path]
               - - - - -- - - - - - - - - - - - - - - - - - - - - - - - - - -
 
               To see statistics:
@@ -35,30 +32,35 @@ if (args.Length == 1)
         }
         catch (IOException e)
         {
-            WriteLine("Failed.");
-            WriteLine(e.Message);
+            Console.WriteLine("Failed.");
+            Console.WriteLine(e.Message);
         }
     }
     else
     {
-        WriteLine("Unknown command");
-        WriteLine("For help, use the command: dotnet run -help");
+        Console.WriteLine("Unknown command");
+        Console.WriteLine("For help, use the command: dotnet run -help");
     }
 }
-else
+if (args.Length == 2)
 {
     try
     {
-        var firstMatrix = new Matrix(args[0]);
-        var secondMatrix = new Matrix(args[1]);
+        var firstMatrix = new Matrix.Matrix(args[0]);
+        var secondMatrix = new Matrix.Matrix(args[1]);
 
-        var resultMatrix = MatrixOperation.ParallelMultiplyMatrix(firstMatrix, secondMatrix);
+        var resultMatrix = MatrixMultiplication.ParallelMultiplyMatrix(firstMatrix, secondMatrix);
         resultMatrix.SaveMatrixToFile("ResultMatrix.txt");
     }
     catch (Exception ex) when (ex is ArgumentNullException or InvalidDataException)
     {
-        WriteLine(ex.Message);
+        Console.WriteLine(ex.Message);
     }
+}
+else
+{
+    Console.WriteLine("Unknown command");
+    Console.WriteLine("For help, use the command: dotnet run -help");
 }
 
 
