@@ -7,12 +7,12 @@ using Attributes;
 /// <summary>
 /// Class represents executing tests and getting results of its work.
 /// </summary>
-public class TestRunner
+public abstract class TestRunner
 {
     /// <summary>
     /// Runs tests in all assemblies asynchronous in the specific file path.
     /// </summary>
-    public async Task RunTestsAsync(string path)
+    public static async Task RunTestsAsync(string path, TextWriter writer)
     {
         if (!Directory.Exists(path))
         {
@@ -21,30 +21,39 @@ public class TestRunner
 
         var assemblies = Directory.EnumerateFiles(path, "*.dll");
 
-        List<Task> tasksForAssemblies = [];
+        var tasksForAssemblies = new List<Task>();
 
         foreach (var assemblyPath in assemblies)
         {
-            tasksForAssemblies.Add(RunAssemblyTestsAsync(assemblyPath));
+            tasksForAssemblies.Add(RunAssemblyTestsAsync(assemblyPath, writer));
         }
 
         await Task.WhenAll(tasksForAssemblies);
     }
-
-    public static async Task RunAssemblyTestsAsync(string assemblyPath)
+    
+    /// <summary>
+    /// Runs all tests in the assembly.
+    /// </summary>
+    /// <param name="assemblyPath">Assembly where the tests are executed.</param>
+    /// <param name="writer">Source to write results in.</param>
+    public static async Task RunAssemblyTestsAsync(string assemblyPath, TextWriter writer)
     {
         var assembly = Assembly.LoadFrom(assemblyPath);
 
-        var tasksForTypes = new List<Task>();
+        var tasksForTypes = new List<Task<List<TestResultInfo>>>();
         foreach (var type in assembly.GetTypes())
         {
             tasksForTypes.Add(RunTypesTestsAsync(type));
         }
 
-        await Task.WhenAll(tasksForTypes);
+        var results = await Task.WhenAll(tasksForTypes);
+        foreach (var resultList in results)
+        {
+            TestResultInfo.PrintResults(resultList, writer);
+        }
     }
 
-    private static async Task RunTypesTestsAsync(Type type)
+    private static async Task<List<TestResultInfo>> RunTypesTestsAsync(Type type)
     {
         var instance = Activator.CreateInstance(type) ?? throw new InvalidOperationException();
         
@@ -53,57 +62,70 @@ public class TestRunner
                 methodInfo.GetCustomAttributes(typeof(TestAttribute), false).Length != 0)
             .ToList();
         
-        if (methodsWithTestAttribute.Count == 0) return;
+        if (methodsWithTestAttribute.Count == 0) return [];
         
         await CallMethodWithAttribute(type, typeof(BeforeClassAttribute));
 
+        var resultList = new List<TestResultInfo>();
+
         foreach (var method in methodsWithTestAttribute)
         {
+            var isPassed = false;
+            var failedExpected = false;
+            var duration = 0.0;
+            var exceptionMessage = "";
+            var ignoreMessage = "";
+            var unexpectedException = "";
+
             var testAttributes = method.GetCustomAttributes<TestAttribute>();
-           
+
             await CallMethodWithAttribute(instance, typeof(BeforeAttribute));
-            
+
             foreach (var attribute in testAttributes)
             {
                 if (attribute.IgnoreReason != null)
                 {
-                    Console.WriteLine($"(!) Test '{method.Name}' ignored: {attribute.IgnoreReason}");
+                    ignoreMessage = attribute.IgnoreReason;
                     continue;
                 }
 
                 if (attribute.Expected != null)
                 {
-                    Console.WriteLine($"(!) Test '{method.Name}' expected failure: {attribute.Expected}");
+                    exceptionMessage = attribute.Expected.ToString();
                 }
-                
+
                 var stopwatch = new Stopwatch();
                 stopwatch.Start();
-                
+
                 try
                 {
-                    await Task.Run(() => method.Invoke(instance, null));
-                    
-                    Console.WriteLine($"(+) Test '{method.Name}' passed");
+                    method.Invoke(instance, null);
+                    isPassed = true;
                 }
                 catch (Exception ex)
                 {
                     if (attribute.Expected != null && attribute.Expected == ex.InnerException?.GetType())
                     {
-                        Console.WriteLine($"(+) Test '{method.Name}' failed as expected: {ex.InnerException?.Message}");
+                        failedExpected = true;
                     }
                     else
                     {
-                        Console.WriteLine($"(-) Test '{method.Name}' failed unexpectedly: {ex.InnerException?.Message}");
+                        unexpectedException = ex.InnerException?.Message;
                     }
                 }
-                
+
                 stopwatch.Stop();
-                var testTime = stopwatch.Elapsed.TotalMilliseconds;
-                Console.WriteLine($"(T) Testing took {testTime} ms.");
+                duration = stopwatch.Elapsed.TotalMilliseconds;
             }
+
             await CallMethodWithAttribute(instance, typeof(AfterAttribute));
+
+            resultList.Add(new TestResultInfo(method.Name, isPassed, failedExpected, duration, exceptionMessage,
+                ignoreMessage, unexpectedException));
         }
+
         await CallMethodWithAttribute(type, typeof(AfterClassAttribute));
+        return resultList;
     }
 
     private static async Task CallMethodWithAttribute(Type type, Type attributeType)
