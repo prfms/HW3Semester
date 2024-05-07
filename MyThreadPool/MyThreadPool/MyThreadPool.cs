@@ -31,7 +31,7 @@ public class MyThreadPool
 
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
     {
-        var task = new MyTask<TResult>(func, this);
+        var task = new MyTask<TResult>(func, this, _cts.Token);
         
         if (!_cts.IsCancellationRequested)
         {
