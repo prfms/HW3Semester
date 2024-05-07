@@ -115,7 +115,7 @@ public abstract class TestRunner
                 }
 
                 stopwatch.Stop();
-                duration = stopwatch.Elapsed.TotalMilliseconds;
+                duration = stopwatch.ElapsedMilliseconds;
             }
 
             await CallMethodWithAttribute(instance, typeof(AfterAttribute));
