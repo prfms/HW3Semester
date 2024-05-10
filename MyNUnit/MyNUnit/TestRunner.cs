@@ -77,7 +77,10 @@ public static class TestRunner
         var tasksTestMethod = new List<Task<TestResultInfo>>();
         foreach (var method in methodsWithTestAttribute)
         {
-            tasksTestMethod.Add(RunMethodsAsync(type, method));
+            if (ValidateTestMethod(method))
+            {
+                tasksTestMethod.Add(RunMethodsAsync(type, method));
+            }
         }
         
         var result = await Task.WhenAll(tasksTestMethod);
@@ -89,7 +92,7 @@ public static class TestRunner
 
     private static async Task<TestResultInfo> RunMethodsAsync(Type type, MethodInfo method)
     {
-        var isPassed = false;
+        var isPassed = true;
         var failedExpected = false;
         var duration = 0.0;
         var exceptionMessage = "";
@@ -113,13 +116,13 @@ public static class TestRunner
                 exceptionMessage = attribute.Expected.ToString();
             }
 
+            var instance = Activator.CreateInstance(type);
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
             try
             {
-                method.Invoke(type, null);
-                isPassed = true;
+                method.Invoke(instance, null);
             }
             catch (Exception ex)
             {
@@ -129,6 +132,7 @@ public static class TestRunner
                 }
                 else
                 {
+                    isPassed = false;
                     unexpectedException = ex.InnerException?.Message;
                 }
             }
@@ -142,6 +146,12 @@ public static class TestRunner
         return new TestResultInfo(method.Name, isPassed, failedExpected, duration, exceptionMessage,
             ignoreMessage, unexpectedException);
     }
+
+    private static bool ValidateTestMethod(MethodInfo method)
+    {
+        return method.GetParameters().Length == 0 && method.ReturnType == typeof(void);
+    }
+    
     private static async Task CallMethodWithAttribute(Type type, Type attributeType)
     {
         foreach (var method in type.GetMethods())
