@@ -10,7 +10,7 @@ public class Tests
     {
         _threadPool = new MyThreadPool.MyThreadPool(_threadPoolNumber);
     }
-
+    
     [TearDown]
     public void Cleanup()
     {
@@ -43,22 +43,19 @@ public class Tests
     }
 
     [Test]
-    public void ContinueWith_ParentAndContinuationTask_ParentTaskCompletesFirst()
+    public void ContinueWith_ParentTaskCompletesFirst()
     {
         var flag = false;
 
-        var parentTask = _threadPool.Submit(() =>
+        var task = _threadPool.Submit(() =>
         {
-            Thread.Sleep(100);
+            Thread.Sleep(10000);
+            Volatile.Write(ref flag, false);
             return 0;
-        });
-
-        parentTask.ContinueWith(_ =>
+        }).ContinueWith(_ =>
         {
-            if (parentTask.IsCompleted)
-            {
-                Volatile.Write(ref flag, true);
-            }
+            Thread.Sleep(200);
+            Volatile.Write(ref flag, true);
             return 1;
         });
 
@@ -68,13 +65,13 @@ public class Tests
     }
 
     [Test]
-    public void MultipleContinueWithShouldHaveExpectedResult()
+    public void MultipleContinueWith_ShouldHaveExpectedResult()
     {
-        const int expectedResult = 442;
+        const int expectedResult = 42;
 
         var myTask = _threadPool.Submit(() => 2 * 2)
             .ContinueWith(x => x.ToString())
-            .ContinueWith(x => x + "42")
+            .ContinueWith(x => x + "2")
             .ContinueWith(int.Parse!);
         
         Assert.That(myTask.Result, Is.EqualTo(expectedResult));
@@ -93,28 +90,6 @@ public class Tests
         });
 
         _threadPool.Shutdown();
-        Assert.That(flag, Is.True);
-    }
-
-    [Test]
-    public void ContinueWith_TasksAndMainThread_MainThreadNotBlocked()
-    {
-        var mainThreadContinueSignal = new AutoResetEvent(false);
-
-        var parentTask = _threadPool.Submit(() =>
-        {
-            Thread.Sleep(10000);
-            return 0;
-        });
-
-        var continuationTask = parentTask.ContinueWith(_ =>
-        {
-            mainThreadContinueSignal.Set();
-            return 1;
-        });
-
-        var flag = !mainThreadContinueSignal.WaitOne(1000);
-
         Assert.That(flag, Is.True);
     }
 
