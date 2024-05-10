@@ -84,7 +84,7 @@ public class Tests
 
         _threadPool.Submit(() =>
         {
-            Thread.Sleep(500);
+            Thread.Sleep(1000);
             Volatile.Write(ref flag, true);
             return 0;
         });

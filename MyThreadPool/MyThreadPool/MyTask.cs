@@ -8,6 +8,7 @@ public class MyTask<TResult> : IMyTask<TResult>
     private readonly Func<TResult> _func;
     private readonly MyThreadPool _threadPool;
     private TResult? _result;
+    private Exception? _exception;
     private readonly ManualResetEvent _taskCompletedEvent = new (false);
     private readonly CancellationToken _cancellationToken;
     private readonly ConcurrentQueue<Action> _waitingContinuations = new();
@@ -29,7 +30,8 @@ public class MyTask<TResult> : IMyTask<TResult>
             {
                 _taskCompletedEvent.WaitOne();
             }
-            
+
+            if (_exception is not null) throw new AggregateException(_exception);
             return _result;
         }
     }
@@ -45,6 +47,7 @@ public class MyTask<TResult> : IMyTask<TResult>
             catch (Exception e)
             {
                 _result = default;
+                _exception = e;
                 throw new AggregateException(e);
             }
             finally
